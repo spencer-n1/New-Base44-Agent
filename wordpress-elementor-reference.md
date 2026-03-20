@@ -1,6 +1,6 @@
 # WordPress Elementor — Reference File
-**Version:** 3.1 — March 19, 2026
-**Pair with:** `wordpress-elementor.md` (execution file — use mid-build)
+# Version: 3.2 — March 20, 2026
+# Pair with: `wordpress-elementor.md` (execution file — use mid-build)
 
 This file explains the WHY behind every rule in the execution file. Read once at session start. Do not re-read mid-build — use the execution file for that.
 
@@ -102,6 +102,24 @@ Always target inner columns by their `data-id` instead.
 
 CSS class backgrounds and border-radius on Elementor column elements are unreliable because Elementor applies its own inline styles directly on the element. Those inline styles have higher specificity than even `!important` CSS rules in some cases. Setting `background_color`, `border_border`, `border_color`, and `border_radius` directly in the column's JSON settings forces Elementor to render them as widget properties — which always works. If you are about to write `border-radius` in CSS for a card column — stop. It goes in `col()`.
 
+### Why Card Gap Requires Triple-Redundancy
+
+The gap between cards is controlled by THREE possible places:
+
+1. **Container's `flex_gap` in JSON** — Elementor sets this as an inline style
+2. **Elementor's default gap** — varies by container type
+3. **CSS targeting the container data-id** — overrides everything
+
+**The problem:** If you only set gap in JSON, Elementor might add its own conflicting styles. If you only set in CSS, you need the container data-id.
+
+**The solution (triple-redundancy):**
+1. Document gap in Content Map (measured from reference)
+2. Set in JSON as `flex_gap`
+3. Extract container data-id
+4. Enforce in CSS with `!important`
+
+This triple-redundancy ensures the gap is exactly what you measured.
+
 ### Why nth-child Breaks on Sections and Containers
 
 Elementor wraps sections and containers in extra divs during rendering. The actual DOM structure has more elements than the JSON structure, which means nth-child indexes don't match what you'd expect from the JSON. Always use `data-id` selectors. **Exception:** nth-child IS safe on `.elementor-column .elementor-widget-heading` because columns don't inject extra wrapper divs between their direct widget children.
@@ -119,6 +137,19 @@ The Elementor heading widget has an `align` setting in its JSON. In theory this 
 ```
 
 Never set this globally — it will center-align sections that should be left-aligned.
+
+---
+
+## The "Complete Braille" Philosophy
+
+A braille document is a complete tactile representation of text — nothing is implied, everything is explicitly encoded. That's how this pipeline treats web builds:
+
+- Every color is a hex code, not "blue"
+- Every size is a pixel value, not "about 64px"
+- Every gap is measured, not "from reference"
+- Every element is declared before it's built
+
+**If you can't fill out every field in the Step 0 Content Map, you don't understand the reference well enough to build from it.**
 
 ---
 
@@ -184,6 +215,34 @@ When the reference shows a full-bleed background image on a section, do not atte
 ### Alternating Section Colors
 
 If the reference alternates between dark backgrounds (e.g. `#0a0a0a` and `#111111` or `#1a1a1a`), document each section's exact color separately. Never assume all sections share the same background.
+
+---
+
+## Spacing Extraction — Complete Braille
+
+### Section Padding
+Measure from section edge to first content element:
+- Typical: 80-120px top/bottom
+- Compact: 40-60px
+- Hero: often 0 (uses min-height instead)
+
+### Content Stack Gap
+Measure between consecutive elements:
+- Label to headline: typically 16-24px
+- Headline to sub: typically 16-24px
+- Sub to buttons: typically 32-40px
+
+### Card Gap (CRITICAL)
+Measure between card edges:
+- Typical: 24-32px
+- Tight: 16px
+- Loose: 40px
+
+**This is the #1 missed measurement.** Document it as:
+```
+## CARD LAYOUT — CONTAINER
+- Card row gap: 24px  ← MEASURED VALUE
+```
 
 ---
 
@@ -428,28 +487,7 @@ Apply to all columns except the last one.
 
 ---
 
-## Mistakes — Full Explanations
-
-Brief explanations for each rule in the mistakes table. The table itself is in the execution file.
-
-| # | Full Explanation |
-|---|-----------------|
-| 3 | Elementor uses inline `flex-basis` for column widths. CSS `width: 100% !important` overrides inline styles and forces all columns to stack vertically. |
-| 4 | Elementor's rendering engine strips CSS classes from inner sections during output. The class appears in the JSON but never reaches the DOM. |
-| 7 | Building nav as an Elementor sticky section creates z-index conflicts with other elements and requires per-page nav management. The `wp_body_open` approach gives one nav across all pages. |
-| 15 | Reference sites almost never use pure `#0a0a0a`. Defaulting to it without checking produces a visible difference from the reference. Always extract. |
-| 16 | functions.php contains WP core hooks loaded by the Hello Elementor theme. Replacing it wholesale removes those hooks and can break the theme or the admin. The SS STYLES / SS NAV pattern surgically manages only the custom blocks. |
-| 24 | Elementor generates inline `style` attributes on column elements that include background and border properties. These inline styles have higher specificity than external CSS rules, even with `!important` in some contexts. The only reliable approach is setting these properties in the JSON itself so Elementor generates the inline styles correctly from the start. |
-| 32 | Same as #24 — card border-radius applied via CSS on column elements is overridden by Elementor's own inline style generation. |
-| 33 | Elementor's CSS stack includes a rule targeting `.elementor-heading-title` with text-align from the widget's align setting, but the specificity of this generated rule can be lost to other cascade layers. Explicit `!important` CSS in SS_STYLES_BLOCK is the only guaranteed approach. |
-
----
-
-*Reference file — read once at session start. For mid-build quick reference → `wordpress-elementor.md`*
-*Version 3.0 — March 19, 2026*
-
-
-### Why Hero CSS Class Doesn't Control Section Height
+## Why Hero CSS Class Doesn't Control Section Height
 
 **Confirmed in DOM inspection (March 19, 2026):** Top-level section elements DO receive their `_css_classes` in the DOM (unlike columns inside e-con). But the hero still doesn't respect `min-height` from CSS targeting `.xpo-hero` because Elementor adds `elementor-section-height-default` to every section that doesn't have height set in the JSON. This class has Elementor-generated CSS attached to it that conflicts.
 
@@ -471,6 +509,7 @@ Step 2: Reinforce with CSS by data-id (not by class — class specificity may st
 ```
 
 **Why both:** The JSON `min_height` setting causes Elementor to switch from `elementor-section-height-default` to `elementor-section-height-min-height`, which removes the conflicting generated CSS. The data-id CSS then reliably applies the height. Using CSS alone without the JSON change doesn't work because `elementor-section-height-default` styles override with equal specificity.
+
 ---
 
 ## Multi-Color Headlines — Inline Span (Confirmed Working)
@@ -488,6 +527,7 @@ heading(
 The span renders inline inside the `<h1>`. Any valid inline CSS works: `color`, `font-weight`, `font-style`, gradient via background-clip, etc.
 
 **This replaces all previous guidance about multi-color headlines requiring a "plan" or split widget approach.** The Step 0 Content Map field for multi-color headlines now just notes the color hex — no architectural planning needed.
+
 ---
 
 ## Why Kit custom_css Is Banned
@@ -549,3 +589,14 @@ heading(
 ```
 Elementor heading widget titles render raw HTML. The span fires inline. One widget, one class, one CSS rule.
 
+---
+
+## Version History
+
+- v3.2 (March 20, 2026): Complete Braille philosophy, card gap triple-redundancy, spacing extraction guide
+- v3.1 (March 19, 2026): Kit CSS ban, scope rules, image rule
+- v3.0 (March 19, 2026): Initial split
+
+---
+
+*Reference file — read once at session start. For mid-build quick reference → `wordpress-elementor.md`*
