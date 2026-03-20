@@ -22,6 +22,13 @@ Read both files in this order:
 1. `wordpress-elementor-reference.md` — absorb the deep rules once
 2. `wordpress-elementor.md` — internalize the execution flow
 
+### Default Scope — Read This First
+
+**Every build = content sections only.** Nav and footer are EXCLUDED unless explicitly requested.
+**Every image = placehold.co.** Never real images from the reference site.
+**Every text element = heading widget.** Text editor widget does not exist in this pipeline.
+**CSS injection = SSH functions.php only.** Kit custom_css is banned.
+
 ### Mid-Build
 
 Re-read only `wordpress-elementor.md`. It has a Re-Read Map at the top — find the section you need in under 10 seconds.
@@ -36,4 +43,4 @@ Re-read only `wordpress-elementor.md`. It has a Re-Read Map at the top — find 
 ---
 
 *This index file is intentionally minimal. All content lives in the two files above.*
-*Last updated: March 19, 2026*
+*Last updated: March 19, 2026 (v3.1 — scope rules, image rule, widget ban, Kit CSS ban)*
