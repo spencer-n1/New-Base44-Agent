@@ -4,7 +4,7 @@ force_checklist: true
 ---
 
 # WordPress Elementor — Execution File
-**Version:** 3.3 — March 19, 2026
+**Version:** 3.4 — March 19, 2026
 **Pair with:** `wordpress-elementor-reference.md` for deep rules and explanations
 
 ---
@@ -32,7 +32,9 @@ force_checklist: true
 - [ ] Step 0.5: Element Declaration written
 - [ ] Scope confirmed: "Building [X] only"
 - [ ] Exclusions confirmed: "Not touching [nav / functions.php / etc]"
-- [ ] NAV CHECK: page already has a nav? → do NOT add one. Nav is locked unless client says otherwise
+- [ ] **DEFAULT SCOPE = content sections only. NAV and FOOTER are EXCLUDED from every build unless the client explicitly requests them by name.**
+- [ ] NAV CHECK: never build a nav. Not even if the reference has one. Not even if it looks incomplete without one. Nav = excluded by default, always.
+- [ ] FOOTER CHECK: never build a footer. Same rule. Footer = excluded by default, always.
 - [ ] Hard stop check: client say "just" or "only"? → strict scope, nothing extra
 - [ ] Reference screenshot active in context for entire build
 
@@ -65,7 +67,9 @@ force_checklist: true
 
 - **Never work from memory** — re-read the relevant section before each step
 - **NO ICONS EVER** — no Elementor icon widget, no image-as-icon, no emoji. Only inline Unicode in text strings (✦ ↗ ✓ etc.) where reference shows them
+- **NO TEXT EDITOR WIDGET EVER** — every single piece of text uses a heading widget. Body copy, card text, labels, subheadlines — all heading widgets. Text editor widget is unpredictable, unstyled, and breaks CSS targeting. It does not exist in this pipeline.
 - **Copy all text exactly** — never truncate or paraphrase
+- **Images are ALWAYS placehold.co** — never pull real images from the reference site. Every image widget uses `https://placehold.co/WxH/1a1a1a/555555?text=Image` (adjust size to match reference). No exceptions.
 - **Build once, report, stop** — client does the visual check, not you
 - **Pipeline stays universal** — never hardcode build-specific hex, px, or class names into rules. Use `FROM_REF` and `{placeholder}`
 - **No inherited CSS namespaces** — every build gets its own `{clientslug}-*` CSS class prefix. Never reuse classes from a previous project.
@@ -199,7 +203,8 @@ Additionally add to CSS:
 2. **Step 0.5** — Element Declaration (client may waive approval, but declaration must still be written)
 3. Build full Elementor JSON in Python
 4. Push via REST API — always include `"template": "elementor_header_footer"`
-5. Edit `functions.php` — nav HTML + all CSS — **MANDATORY, page is broken without this**
+5. Edit `functions.php` via **SSH (paramiko) only** — all CSS goes here — **MANDATORY, page is broken without this**
+   - **Kit custom_css field is BANNED** — CSS injected via the Elementor Kit does not reliably render on the frontend. Do not use it as a fallback. If SSH fails, stop and report the error — do not silently fall back to Kit CSS.
 6. Clear Elementor cache: `DELETE /wp-json/elementor/v1/cache`
 7. **Run post-build extractor** → `.agents/knowledge/post-build-extractor.md` — MANDATORY, no exceptions
    - Fetches rendered HTML, extracts all data-ids, outputs ready-to-paste CSS block
@@ -271,11 +276,11 @@ Images:
 
 **Section label style must be explicitly identified.** Is it a pill with background + border? Plain colored text? Underlined? Nothing? Never assume it's a bubble/pill just because another site used one.
 
-**Multi-color headlines — SOLVED.** Elementor heading widget titles accept raw HTML. Wrap the colored portion in an inline span:
+**Multi-color headlines — ONE widget, inline span. This is MANDATORY.**
 ```python
-heading('Full Title with <span style="color:#cb9c23;">Colored Part</span>', tag="h1", css_class="...")
+heading('Compassionate Rehabilitation Services in <span style="color:#cb9c23;">Riverside, CA</span>', tag="h1", css_class="...")
 ```
-No second widget. No split approach. One heading widget with an inline `<span style="color:HEX">`. This is the canonical solution for any word or phrase that renders in a different color.
+**NEVER** use two separate heading widgets for a two-color headline. One heading widget, one inline `<span style="color:HEX">`. That's it. Two widgets causes alignment, spacing, and sizing problems every time.
 
 ---
 
