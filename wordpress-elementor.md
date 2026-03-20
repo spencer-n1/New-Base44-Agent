@@ -1,12 +1,11 @@
+# WordPress Elementor — Execution File
+# Version: 3.5 — Complete Braille Edition
+# Date: March 20, 2026
+# Pair with: `wordpress-elementor-reference.md` for deep rules
+
 ---
 type: procedural
 force_checklist: true
----
-
-# WordPress Elementor — Execution File
-**Version:** 3.4 — March 19, 2026
-**Pair with:** `wordpress-elementor-reference.md` for deep rules and explanations
-
 ---
 
 ## Re-Read Map — Use This Mid-Build
@@ -28,7 +27,7 @@ force_checklist: true
 # 🛑 MANDATORY PRE-BUILD CHECKLIST
 
 - [ ] Re-read this entire file
-- [ ] Step 0: Content Map complete — every color, font, text string, image documented
+- [ ] Step 0: Content Map complete — **every color, font, text, spacing MEASURED**
 - [ ] Step 0.5: Element Declaration written
 - [ ] Scope confirmed: "Building [X] only"
 - [ ] Exclusions confirmed: "Not touching [nav / functions.php / etc]"
@@ -183,7 +182,40 @@ The `col()` function must support `bg`, `border_color`, `border_radius`, and `bo
 
 ---
 
-### 5. HERO HEIGHT ISSUE — "hero is not full viewport height"
+### 5. CARD GAP CONTROL — Triple-Redundancy Approach
+
+Card gaps fail because they're controlled by the PARENT container, not the cards. Use this triple-redundancy:
+
+**Step 1: Measure in Content Map**
+```
+## CARD LAYOUT — CONTAINER
+- Card row gap: 24px  ← MEASURE THIS FROM REFERENCE
+```
+
+**Step 2: Set in JSON**
+```python
+container(
+    [card1, card2, card3],
+    direction="row",
+    gap=24  # ← FROM CONTENT MAP
+)
+```
+
+**Step 3: Extract container data-id and enforce in CSS**
+```css
+.elementor-element-{CONTAINER_ID} {
+    gap: 24px !important;  ← MATCH CONTENT MAP
+}
+.elementor-element-{CONTAINER_ID} > .e-con-inner {
+    gap: 24px !important;
+}
+```
+
+**Why triple:** If JSON gap fails, CSS catches it. If CSS specificity loses, the JSON provides baseline.
+
+---
+
+### 6. HERO HEIGHT ISSUE — "hero is not full viewport height"
 
 This is always caused by missing `min_height`. Fix:
 ```python
@@ -199,14 +231,14 @@ Additionally add to CSS:
 
 ## Deployment Flow
 
-1. **Step 0** — Content Map
+1. **Step 0** — Content Map (MEASURE EVERYTHING — no "from reference")
 2. **Step 0.5** — Element Declaration (client may waive approval, but declaration must still be written)
 3. Build full Elementor JSON in Python
 4. Push via REST API — always include `"template": "elementor_header_footer"`
 5. Edit `functions.php` via **SSH (paramiko) only** — all CSS goes here — **MANDATORY, page is broken without this**
    - **Kit custom_css field is BANNED** — CSS injected via the Elementor Kit does not reliably render on the frontend. Do not use it as a fallback. If SSH fails, stop and report the error — do not silently fall back to Kit CSS.
 6. Clear Elementor cache: `DELETE /wp-json/elementor/v1/cache`
-7. **Run post-build extractor** → `.agents/knowledge/post-build-extractor.md` — MANDATORY, no exceptions
+7. **Run post-build extractor** → `post-build-extractor.md` — MANDATORY, no exceptions
    - Fetches rendered HTML, extracts all data-ids, outputs ready-to-paste CSS block
    - Do NOT write card/hero/button CSS until extractor has run and returned real data-ids
 8. Write CSS in order: data-id blocks first (from extractor), then class-based blocks (labels, typography, nav)
@@ -217,57 +249,170 @@ Additionally add to CSS:
 
 ---
 
-## Step 0 — Content Map Template
+## Step 0 — Content Map Template (COMPLETE BRAILLE)
 
-Fill this out completely before writing any code. One block per section.
+**INSTRUCTIONS:**
+1. Create ONE block per section (Hero, Who We Are, Services, etc.)
+2. **EVERY field must be filled** — no "from reference", no guessing
+3. Measure pixels from screenshot using any tool
+4. Hex colors only — no "blue" or "dark gray"
+5. If field doesn't apply, write "N/A"
+6. **CARD GAP IS MANDATORY** — measure the space between card edges
 
 ```
-## [SECTION NAME]
+# ═══════════════════════════════════════════════════════════════
+# SECTION: [NAME — e.g., HERO]
+# ═══════════════════════════════════════════════════════════════
 
-Colors:
-- Section background: [hex]
-- Card background: [hex]
-- Card border: [hex]
-- Primary text: [hex]
-- Muted/secondary text: [hex]
-- Accent text: [hex]
-- Button bg: [hex] / Button text: [hex]
-- Border/divider: [rgba or hex]
+## SECTION-LEVEL COLORS
+- Section background: #[HEX] (solid color, measure from screenshot)
+- Section background image: YES/NO (if YES, document: "using solid #HEX match")
+- Section min-height: [X]vh (measure from reference)
 
-Typography:
-- Section label style: [pill/bubble | plain text | colored text | underlined | none] — color: [hex], size: [px], weight: [n], uppercase: [yes/no]
-- Section label CSS class: [{slug}-label-{color}]  ← MUST be unique per color, not shared across sections
-- Headline: [px], weight [n], line-height [n], max-width [px]
-- Multi-color headline: [YES — plan: {describe split/widget approach} | NO]
-- Subheadline: [px], weight [n], line-height [n], max-width [px]
-- Card title: [px], weight [n]
-- Card body: [px], weight [n], line-height [n]
-- Button text: [px], weight [n]
+## TYPOGRAPHY — LABEL (small text above headline)
+- Label text: "[EXACT TEXT]"
+- Label color: #[HEX]
+- Label font-size: [X]px
+- Label font-weight: [100-900]
+- Label uppercase: YES/NO
+- Label letter-spacing: [X]em (typically 0.1-0.15)
+- Label CSS class: [slug]-label-[color]
 
-Spacing:
-- Section padding: [top]px / [bottom]px
-- Header gap: [px]
-- Card gap: [px]
-- Button row gap: [px]
+## TYPOGRAPHY — HEADLINE (H1/H2)
+- Headline text: "[EXACT TEXT]"
+- Headline has multi-color: YES/NO
+- If YES, colored portion: "[TEXT]" color: #[HEX]
+- Headline color (primary): #[HEX]
+- Headline color (accent): #[HEX] (if multi-color)
+- Headline font-size: [X]px (desktop)
+- Headline font-weight: [100-900]
+- Headline line-height: [X] (unitless, e.g., 1.2)
+- Headline max-width: [X]px (controls line breaks)
+- Headline alignment: center/left/right
+- Headline CSS class: [slug]-[section]-h1
 
-Alignment:
-- Section label: [center/left]
-- Headline: [center/left]
-- Subheadline: [center/left]
-- Card content: [center/left]
-- Button row: [center/left]
+## TYPOGRAPHY — SUBHEADLINE
+- Subheadline text: "[EXACT TEXT]"
+- Subheadline color: #[HEX]
+- Subheadline font-size: [X]px
+- Subheadline font-weight: [100-900]
+- Subheadline line-height: [X]
+- Subheadline max-width: [X]px
+- Subheadline alignment: center/left/right
+- Subheadline CSS class: [slug]-[section]-sub
 
-Content:
-- Section label: "[EXACT]"
-- Headline: "[EXACT]"
-- Subheadline: "[EXACT]"
-- Card 1 title: "[EXACT]" / body: "[EXACT]"
-- Card 2 title: "[EXACT]" / body: "[EXACT]"
-- Card 3 title: "[EXACT]" / body: "[EXACT]"
-- Button 1: "[EXACT]" — style: [solid/outline]
+## TYPOGRAPHY — BODY (if applicable)
+- Body text: "[EXACT TEXT — all paragraphs]"
+- Body color: #[HEX]
+- Body font-size: [X]px
+- Body font-weight: [100-900]
+- Body line-height: [X]
+- Body CSS class: [slug]-[section]-body
 
-Images:
-- Slot 1: YES/NO — position [left/right/top] — approx size [WxH]
+## SPACING — SECTION
+- Section padding-top: [X]px
+- Section padding-bottom: [X]px
+- Section padding-left/right: [X]px (if asymmetric)
+
+## SPACING — CONTENT STACK (vertical gaps)
+- Label to headline: [X]px
+- Headline to subheadline: [X]px
+- Subheadline to buttons: [X]px
+- Button row gap: [X]px (between buttons)
+
+## BUTTONS
+### Button 1:
+- Text: "[EXACT]"
+- Style: solid/outline
+- Background: #[HEX] (if solid)
+- Text color: #[HEX]
+- Border color: #[HEX] (if outline)
+- Border width: [X]px
+- Border radius: [X]px
+- Font size: [X]px
+- Font weight: [100-900]
+- CSS class: [slug]-btn-[type]
+
+### Button 2:
+- Text: "[EXACT]"
+- (same fields as Button 1)
+
+## LAYOUT — CONTENT STACK
+- Number of elements stacked vertically: [N]
+- Content alignment: center/left/right
+- Content max-width: [X]px (container width)
+
+## IMAGES
+### Image 1:
+- Present: YES/NO
+- Position: left/right/top/background
+- Dimensions: [W]x[H]px
+- Placehold.co URL: https://placehold.co/[W]x[H]/[BG]/[TEXT]?text=[DESC]
+- Border radius: [X]px
+
+## SPECIAL ELEMENTS
+- Decorative shapes: YES/NO (describe)
+- Background patterns: YES/NO (describe)
+- Animations: YES/NO (describe)
+
+# ═══════════════════════════════════════════════════════════════
+```
+
+---
+
+## CARD SECTIONS (Services, Features, etc.) — ADD TO TEMPLATE
+
+```
+## CARD LAYOUT — CONTAINER (CRITICAL)
+- Number of cards: [N]
+- Cards per row: [N] (typically 3 or 4)
+- **Card row gap: [X]px (MEASURE THIS — space between cards horizontally)**
+- Card row max-width: [X]px (container width, typically 1200px)
+- Card row alignment: center/left/right
+- Card equal width method: flex 1 1 0 (always this)
+
+## CARD STYLING — PER CARD (measure one, apply to all)
+- Card background: #[HEX]
+- Card border color: #[HEX]
+- Card border width: [X]px
+- Card border radius: [X]px
+- Card shadow: [X]px [Y]px [BLUR]px [SPREAD]px rgba(R,G,B,A)
+- Card padding: [X]px top / [X]px right / [X]px bottom / [X]px left
+
+## CARD TYPOGRAPHY — TITLE
+- Title color: #[HEX]
+- Title font-size: [X]px
+- Title font-weight: [100-900]
+- Title CSS class: [slug]-card-title
+
+## CARD TYPOGRAPHY — BODY
+- Body color: #[HEX]
+- Body font-size: [X]px
+- Body font-weight: [100-900]
+- Body line-height: [X]
+- Body CSS class: [slug]-card-body
+
+## CARD LINKS
+- Link text: "[EXACT — e.g., Learn More →]"
+- Link color: #[HEX]
+- Link font-size: [X]px
+- Link font-weight: [100-900]
+- Link CSS class: [slug]-card-link
+
+### Card 1:
+- Title: "[EXACT]"
+- Body: "[EXACT — full text]"
+- Link: "[EXACT]"
+
+### Card 2:
+- Title: "[EXACT]"
+- Body: "[EXACT — full text]"
+- Link: "[EXACT]"
+
+### Card 3:
+- Title: "[EXACT]"
+- Body: "[EXACT — full text]"
+- Link: "[EXACT]"
 ```
 
 **If it's not in your Step 0 notes, you don't know it.**
@@ -284,31 +429,150 @@ heading('Compassionate Rehabilitation Services in <span style="color:#cb9c23;">R
 
 ---
 
-## Step 0.5 — Element Declaration
+## Step 0.5 — Element Declaration (COMPLETE STRUCTURE)
 
-Format every section like this before writing any code:
+**INSTRUCTIONS:**
+1. Declare EVERY element that will exist on the page
+2. Use exact text from Content Map
+3. Specify CSS class for every element
+4. Hierarchy must match JSON structure
+5. NO element can exist in JSON that isn't declared here
 
 ```
-Section: [Name]
-  Background: [hex]
-  Alignment: [center/left/right]
-  CSS class prefix for this build: [{clientslug}-*]
+# ═══════════════════════════════════════════════════════════════
+# PAGE: [Page Name]
+# SLUG: [slug]
+# PAGE ID: [ID if editing, or "NEW"]
+# ═══════════════════════════════════════════════════════════════
 
-  Element 1: [widget type] — [description] — "[EXACT TEXT]" — CSS class: [{slug}-label-{color}]
-  Element 2: [widget type] — [description] — "[EXACT TEXT]"
+## GLOBAL SETTINGS
+- Font family: Inter (Google Fonts)
+- Container max-width: 1200px
+- Base font size: 16px
 
-  Card 1: [name]
-    Background: [hex]  ← goes in col() JSON
-    Border: [color] [width]px  ← goes in col() JSON
-    Border-radius: [px]  ← goes in col() JSON
-    Has image: YES/NO — position: [left/right/top/none]
-    CSS class: xpo-card-col  ← same class on ALL card columns for equal-width
-    Title: "[EXACT TEXT]"
-    Body: "[EXACT TEXT]"
-    Button: "[EXACT TEXT]" — [solid/outline]
+## SECTION 1: [NAME — e.g., HERO]
 
-  Card 2: [same]
-  Card 3: [same]
+### Section Properties:
+- elType: section
+- Background: #[HEX] (from Content Map)
+- Min-height: [X]vh
+- CSS class: [slug]-hero
+
+### Container (e-con flex):
+- Direction: column
+- Align items: center
+- Justify content: center
+- Max width: [X]px
+- Gap: [X]px (vertical gap between elements)
+- CSS class: [slug]-hero-container
+
+### Element 1: Label
+- Widget: heading
+- Tag: p
+- Text: "[EXACT FROM CONTENT MAP]"
+- CSS class: [slug]-label-[color]
+
+### Element 2: Headline
+- Widget: heading
+- Tag: h1
+- Text: "[EXACT] <span style='color:#[HEX];'>[COLORED PORTION]</span>"
+- CSS class: [slug]-hero-h1
+
+### Element 3: Subheadline
+- Widget: heading
+- Tag: p
+- Text: "[EXACT]"
+- CSS class: [slug]-hero-sub
+
+### Element 4: Button Row (e-con flex):
+- Direction: row
+- Gap: [X]px
+- Justify: center
+
+#### Button 1:
+- Widget: button
+- Text: "[EXACT]"
+- Style: outline
+- CSS class: [slug]-btn-outline
+
+#### Button 2:
+- Widget: button
+- Text: "[EXACT]"
+- Style: outline
+- CSS class: [slug]-btn-outline
+
+---
+
+## SECTION 3: [NAME — e.g., SERVICES] (Card Grid)
+
+### Section Properties:
+- elType: section
+- Background: #[HEX]
+- Padding: [X]px top / [X]px bottom
+- CSS class: [slug]-services
+
+### Header Stack (e-con flex column):
+- Align: center
+- Gap: [X]px
+
+#### Element 1: Label
+- Widget: heading
+- Tag: p
+- Text: "[EXACT]"
+- CSS class: [slug]-label-[color]
+
+#### Element 2: Headline
+- Widget: heading
+- Tag: h2
+- Text: "[EXACT]"
+- CSS class: [slug]-section-h2
+
+#### Element 3: Subheadline
+- Widget: heading
+- Tag: p
+- Text: "[EXACT]"
+- CSS class: [slug]-section-sub
+
+### Card Row (e-con flex row):
+- Direction: row
+- **Gap: [X]px (THIS IS THE CARD GAP FROM CONTENT MAP)**
+- Justify: center
+- Max width: [X]px
+
+#### Card 1 Column:
+- elType: column
+- Width: 33.333%
+- Background: #[HEX] (JSON)
+- Border: [X]px solid #[HEX] (JSON)
+- Border radius: [X]px (JSON)
+- Padding: [X]px (JSON)
+- CSS class: [slug]-card-col (for tracking)
+- Data-id target: YES (for CSS extraction)
+
+##### Card 1 Content Stack:
+- Direction: column
+- Gap: [X]px
+
+###### Element 1: Title
+- Widget: heading
+- Tag: h3
+- Text: "[EXACT]"
+- CSS class: [slug]-card-title
+
+###### Element 2: Body
+- Widget: heading
+- Tag: p
+- Text: "[EXACT]"
+- CSS class: [slug]-card-body
+
+###### Element 3: Link
+- Widget: heading (styled as link)
+- Tag: p
+- Text: "[EXACT]"
+- CSS class: [slug]-card-link
+
+#### Card 2 Column: [mirror Card 1 structure]
+#### Card 3 Column: [mirror Card 1 structure]
 ```
 
 **Self-review before showing client:**
@@ -322,6 +586,7 @@ Section: [Name]
 - [ ] Multi-color headline plan confirmed if needed
 - [ ] CSS class prefix set for this build — no `ss-*` or classes from another project
 - [ ] All card columns use shared `{slug}-card-col` class for equal-width enforcement
+- [ ] Card row gap explicitly declared (from Content Map)
 - [ ] Nav present? → REMOVE IT unless client explicitly unlocked it
 
 ---
@@ -661,3 +926,16 @@ hero = section([col([...], pct=100)], bg=HERO_BG, min_height=90, css_class="{slu
 ```css
 .{slug}-hero { min-height: 90vh !important; display: flex !important; align-items: center !important; }
 ```
+
+---
+
+## Version History
+
+- v3.5 (March 20, 2026): Complete Braille — crystal clear Content Map & Element Declaration, card gap triple-redundancy
+- v3.4 (March 19, 2026): Nav/footer exclusions, image rule, widget ban, Kit CSS ban
+- v3.3 (March 19, 2026): Data-id extraction mandatory
+- v3.0 (March 19, 2026): Initial split
+
+---
+
+*End of file. Read completely before every build.*
