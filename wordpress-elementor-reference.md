@@ -1,5 +1,5 @@
 # WordPress Elementor — Reference File
-**Version:** 3.0 — March 19, 2026
+**Version:** 3.1 — March 19, 2026
 **Pair with:** `wordpress-elementor.md` (execution file — use mid-build)
 
 This file explains the WHY behind every rule in the execution file. Read once at session start. Do not re-read mid-build — use the execution file for that.
@@ -488,4 +488,64 @@ heading(
 The span renders inline inside the `<h1>`. Any valid inline CSS works: `color`, `font-weight`, `font-style`, gradient via background-clip, etc.
 
 **This replaces all previous guidance about multi-color headlines requiring a "plan" or split widget approach.** The Step 0 Content Map field for multi-color headlines now just notes the color hex — no architectural planning needed.
+---
+
+## Why Kit custom_css Is Banned
+
+The Elementor Kit has a `custom_css` field accessible via the REST API. It seems like a convenient fallback for injecting CSS without SSH. **Do not use it.**
+
+Reasons:
+1. CSS injected via the Kit custom_css field does not consistently render on the frontend — it fires sometimes, fails silently other times
+2. There is no reliable way to verify it applied without loading the page source and checking
+3. It creates a second CSS injection path that conflicts with functions.php when both are present
+4. It cannot be scoped to a specific page — it fires globally, potentially breaking other pages
+
+**The only CSS injection path that works reliably is SSH → functions.php.** If SSH is unavailable, stop and report. Do not silently fall back to Kit CSS.
+
+---
+
+## Default Build Scope — Nav and Footer Are Always Excluded
+
+Every build is content sections only unless the client explicitly names nav or footer as deliverables.
+
+**Why this matters:** The reference site almost always has a nav and footer. An agent that scrapes the reference will see them and assume they should be built. They should not. Nav and footer are either:
+- Already present on the WP site (injected globally via functions.php from a previous build)
+- Out of scope for the current task
+
+**Hard rule:** If the client sends a reference URL and says "build this page" or "make the landing page" — that means sections only. Nav = excluded. Footer = excluded. If in doubt, ask before building either.
+
+---
+
+## Why Images Are Always placehold.co
+
+This pipeline is a structural transfer, not a finished design. Real images from the reference site:
+- Are copyright-protected
+- Are optimized for the reference site's layout, not the WP build
+- Require file upload and media library management
+- Distract from structural review — the client wants to evaluate layout, not imagery
+
+Every image widget in every build gets a placehold.co URL:
+```
+https://placehold.co/600x400/1a1a1a/555555?text=Image
+```
+Adjust dimensions to approximately match the reference. Dark background, gray text. Never a real photo, never a blank widget, never an empty src.
+
+---
+
+## Why Two Heading Widgets for Multi-Color Headlines Is Wrong
+
+When a headline has two colors (e.g. white text + gold accent), the instinct is to use two heading widgets stacked vertically. This is wrong because:
+1. Vertical stacking creates a gap between the two parts — the headline no longer reads as one continuous line
+2. Font size and line-height are set independently on each widget — they will drift
+3. Max-width behaves differently on each widget — line breaks don't match the reference
+4. CSS targeting is doubled — two widgets, two classes, two rules to maintain
+
+The correct approach is one heading widget with an inline HTML span:
+```python
+heading(
+    'Compassionate Rehabilitation Services in <span style="color:#cb9c23;">Riverside, CA</span>',
+    tag="h1", css_class="xpo-hero-h1"
+)
+```
+Elementor heading widget titles render raw HTML. The span fires inline. One widget, one class, one CSS rule.
 
