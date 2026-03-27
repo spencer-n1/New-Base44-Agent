@@ -1,5 +1,95 @@
 # WordPress Elementor Transfer Pipeline
-## Execution Guide — Single File
+## Execution Guide — Structure-First Workflow
+
+**Version:** 2.5 — March 28, 2026  
+**Status:** ✅ TESTED & WORKING (SSH-based injection + DevTools precision)
+
+---
+
+## Overview
+
+This pipeline enables a **structure-first workflow** where:
+1. **You build** the layout structure in Elementor (containers, widgets, placeholders)
+2. **I populate** the copy/content via SSH database injection
+3. **You review** the content
+4. **I apply** CSS styling via SSH
+
+**Key advantage:** No manual copy-paste. Widget content is injected directly into `_elementor_data` post meta.
+
+---
+
+## Prerequisites
+
+- SSH access to WordPress server (confirmed working)
+- WP-CLI installed on server
+- Elementor page with structure built (placeholders acceptable)
+- Content map with all copy prepared
+
+---
+
+## CRITICAL RULES — READ BEFORE EVERY BUILD
+
+### ✅ ALWAYS DO
+
+1. **Hero Section Height:** **Always set hero to 100vh** (full viewport height), regardless of reference.
+   ```css
+   .elementor-element-{HERO_ID} {
+       min-height: 100vh !important;
+   }
+   ```
+
+2. **Section Height Measurement:** For all sections (except hero), measure from:
+   - **Top gap:** Highest element to top section border = top padding
+   - **Bottom gap:** Lowest element to bottom section border = bottom padding
+   - Document these exact values in the content map
+
+3. **Unicode Symbols:** **KEEP** these in text content:
+   - Checkmarks: ✓ ✔
+   - Arrows: → ← ↓ ↑
+   - Phone: 📞
+   - Other inline text symbols
+
+### ❌ NEVER DO
+
+1. **NO Animations:** Zero animations. Do not add:
+   - Fade-ins
+   - Slide-ins
+   - Hover animations
+   - Scroll-triggered animations
+   - Loading animations
+
+2. **NO Scroll Indicators:** Skip any:
+   - Scroll down arrows
+   - "Scroll to explore" text
+   - Bouncing scroll indicators
+   - Mouse scroll icons
+
+3. **NO Section Background Transitions:** Ignore and skip:
+   - Wave dividers (SVG shapes between sections)
+   - Gradient fades between sections
+   - Curved section transitions
+   - Any non-rectangular section borders
+   - Use simple solid color backgrounds only
+
+4. **NO Contact Forms:** Skip entirely:
+   - Contact form widgets
+   - Input fields
+   - Submit buttons for forms
+   - Form validation messages
+
+5. **NO Images/Photos:** Skip entirely:
+   - Hero background images
+   - Section background images
+   - Team photos
+   - Gallery images
+   - Product images
+   - **User will add placeholder images during layout build and handle in cleanup phase**
+
+6. **NO Big Base44 Icons:** Skip these visual elements:
+   - Large emoji-style icons (🎯, 🚀, 💡, etc.)
+   - Base44-style icon containers with background circles
+   - Illustration-style icons
+   - **EXCEPTION:** Keep inline unicode symbols (✓, →, etc.) within text
 
 ---
 
@@ -7,23 +97,249 @@
 
 **Trigger:** User sends a reference (screenshot or live URL of the design to replicate).
 
-**What to do:**
-- Analyze the reference thoroughly — every section, every element.
-- Document ALL of the following:
-  - All copy (headings, subheadings, body text, button labels, nav items, footers, disclaimers — everything)
-  - All colors (backgrounds, text colors, button colors, borders — use hex codes)
-  - All font sizes (in px or rem as seen)
-  - All font families / font weights
-  - Spacing clues (padding, gaps, margin estimates from visual inspection)
-  - Layout notes (number of columns per row, flex direction, alignment)
-  - Any icons, image placeholders, or media noted
+### METHOD A: Live URL (PREFERRED) — DevTools Extraction
+
+If user provides a live URL, use the **browser tool with Chrome DevTools** for pixel-perfect extraction:
+
+**MANDATORY EXTRACTION SEQUENCE:**
+
+```python
+# Step 1: Open and snapshot the reference
+browser.open(targetUrl="https://example.com/")
+browser.snapshot()  # Always take snapshot first to see structure
+
+# Step 2: Extract ALL design tokens (don't skip fields)
+browser.act(kind="evaluate", fn="""
+() => {
+  const getStyle = (el, prop) => window.getComputedStyle(el)[prop];
+  
+  // === TYPOGRAPHY (measure EVERYTHING) ===
+  const h1 = document.querySelector('h1');
+  const h2 = document.querySelector('h2');
+  const h3 = document.querySelector('h3');
+  const body = document.querySelector('p');
+  
+  // === COLORS (note which element has each color) ===
+  // Hero section colors
+  const hero = document.querySelector('section');
+  const heroBg = hero ? getStyle(hero, 'backgroundColor') : null;
+  
+  // Find gold/accent by checking multiple elements
+  const heroOverline = hero ? hero.querySelector('span, .overline') : null;
+  const heroSubtitle = hero ? hero.querySelector('p') : null;
+  const h1Color = h1 ? getStyle(h1, 'color') : null;
+  
+  // === SECTIONS (padding = section height) ===
+  const sections = Array.from(document.querySelectorAll('section')).slice(0, 6);
+  const sectionData = sections.map((s, i) => ({
+    index: i,
+    bg: getStyle(s, 'backgroundColor'),
+    paddingTop: getStyle(s, 'paddingTop'),
+    paddingBottom: getStyle(s, 'paddingBottom'),
+    minHeight: getStyle(s, 'minHeight')
+  }));
+  
+  // === CARDS (check for borders) ===
+  const cardSection = sections[1]; // Usually second section
+  const cards = cardSection ? Array.from(cardSection.querySelectorAll('div')).filter(d => {
+    const childCount = d.querySelectorAll('h3, h2, p').length;
+    return childCount >= 2;
+  }).slice(0, 3) : [];
+  
+  const cardStyles = cards.map(c => ({
+    border: getStyle(c, 'border'),
+    borderRadius: getStyle(c, 'borderRadius'),
+    backgroundColor: getStyle(c, 'backgroundColor'),
+    padding: getStyle(c, 'padding')
+  }));
+  
+  // === BUTTONS (check ALL buttons including nav) ===
+  const allButtons = Array.from(document.querySelectorAll('button, a'));
+  const navButtons = allButtons.filter(b => b.closest('nav, header'));
+  const contentButtons = allButtons.filter(b => !b.closest('nav, header')).slice(0, 4);
+  
+  const buttonStyles = contentButtons.map(b => ({
+    text: b.textContent.slice(0, 30),
+    bg: getStyle(b, 'backgroundColor'),
+    color: getStyle(b, 'color'),
+    borderRadius: getStyle(b, 'borderRadius'),
+    padding: getStyle(b, 'padding'),
+    border: getStyle(b, 'border'),
+    fontWeight: getStyle(b, 'fontWeight')
+  }));
+  
+  const navButtonStyles = navButtons.map(b => ({
+    text: b.textContent.slice(0, 30),
+    bg: getStyle(b, 'backgroundColor'),
+    color: getStyle(b, 'color'),
+    isCta: getStyle(b, 'backgroundColor') !== 'rgba(0, 0, 0, 0)'
+  }));
+  
+  // === ICONS (check for skipped elements) ===
+  const icons = Array.from(document.querySelectorAll('svg, i[class], [class*="icon"]')).slice(0, 10);
+  const iconCount = icons.length;
+  
+  return {
+    typography: {
+      h1: h1 ? { 
+        size: getStyle(h1, 'fontSize'), 
+        weight: getStyle(h1, 'fontWeight'),
+        lineHeight: getStyle(h1, 'lineHeight'),
+        fontFamily: getStyle(h1, 'fontFamily'),
+        color: getStyle(h1, 'color')
+      } : null,
+      h2: h2 ? { 
+        size: getStyle(h2, 'fontSize'), 
+        weight: getStyle(h2, 'fontWeight'),
+        lineHeight: getStyle(h2, 'lineHeight'),
+        color: getStyle(h2, 'color')
+      } : null,
+      h3: h3 ? { 
+        size: getStyle(h3, 'fontSize'), 
+        weight: getStyle(h3, 'fontWeight'),
+        lineHeight: getStyle(h3, 'lineHeight'),
+        color: getStyle(h3, 'color')
+      } : null,
+      body: body ? { 
+        size: getStyle(body, 'fontSize'), 
+        lineHeight: getStyle(body, 'lineHeight'),
+        weight: getStyle(body, 'fontWeight'),
+        color: getStyle(body, 'color')
+      } : null
+    },
+    colors: {
+      heroBg,
+      heroOverlineColor: heroOverline ? getStyle(heroOverline, 'color') : null,
+      heroSubtitleColor: heroSubtitle ? getStyle(heroSubtitle, 'color') : null,
+      h1Color
+    },
+    sections: sectionData,
+    cards: cardStyles,
+    buttons: buttonStyles,
+    navButtons: navButtonStyles,
+    iconCount
+  };
+}
+""")
+
+# Step 3: Targeted extraction for specific elements
+# If accent color location is unclear, target it specifically:
+browser.act(kind="evaluate", fn="""
+() => {
+  const hero = document.querySelector('section');
+  const spans = hero ? hero.querySelectorAll('span') : [];
+  return Array.from(spans).map(s => ({
+    text: s.textContent.slice(0, 50),
+    color: window.getComputedStyle(s).color
+  }));
+}
+""")
+```
+""")
+```
+
+**Key extraction targets:**
+- Exact hex colors (convert from RGB)
+- Precise font sizes in pixels
+- **Section padding values** (top/bottom gap measurements for section height)
+- Border-radius values
+- Box-shadow definitions
+- Button styles (background, border, padding)
+
+**Document findings in the following structure:**
+
+The content map has two parts: universal tokens (reusable values) and section-specific content.
+
+**Part 1 — Universal Tokens**
+
+First, extract all reusable design values. These are referenced later using `{TOKEN_NAME}` syntax.
+
+Colors table: one row per color with name, hex value, and **specific element** where it appears.
+
+Typography table: one row per text element type with size, weight, **line height (measured)**, and **specific color token** it uses.
+
+Buttons table: one row per button style with background color, text color, border radius, and padding.
+
+Card Styles table: one row per card type with background, border, border radius, shadow, and padding.
+
+**Part 2 — Sections**
+
+Then document each section in order. Every section gets:
+
+- Section properties table: background color token, top padding, bottom padding, min height, and layout description
+- Content table: list every text element in the section with element type, exact text content, and **specific typography token** to use
+
+Repeat this section block for every section on the page.
+
+**Part 3 — Skipped Elements**
+
+List everything skipped per pipeline rules with the reason for skipping.
 
 **Write a file:**
-Save all notes to: `scratch/content_map.md`
+Save all notes to: `scratch/content_map_PRECISION.md` (include "PRECISION" if using DevTools)
 
-Format it clearly with sections matching the page layout (e.g. Hero, Features, Testimonials, CTA, Footer). Be exhaustive — this file is your source of truth for all copy and styling. You will refer to it in every subsequent step. Do NOT work from memory.
+**Tell the user:** Content map is done, saved to scratch. Share the URL of the Elementor layout page you built.
 
-**Tell the user:** Content map is done, saved to scratch. Share the URL or screenshot of the Elementor layout page you built.
+---
+
+## STEP 1 VERIFICATION CHECKLIST — MANDATORY
+
+**Before proceeding to Step 2, confirm ALL of the following:**
+
+### Color Verification
+- [ ] Every color has a **specific element** noted (not just "hero bg" — which element?)
+- [ ] Accent colors specify **exact text** they appear on
+- [ ] RGB values converted to HEX (use `rgb_to_hex` function)
+- [ ] No estimated colors — all from DevTools
+
+### Typography Verification  
+- [ ] **Line height measured** for every element — no blank entries
+- [ ] **Font family noted** for H1 (serif vs sans-serif matters)
+- [ ] **Font weight verified** — don't assume, check DevTools
+- [ ] Text color specifies **which color token** it uses
+
+### Layout Verification
+- [ ] **Section padding** measured from border to first/last element
+- [ ] **Card styles** documented (border, radius, shadow)
+- [ ] **Button styles** for EVERY button type (primary, outline, nav CTA)
+
+### Element Inventory
+- [ ] **Navigation scanned** — all links, logo, CTA button
+- [ ] **Icons flagged** — count them, note they're skipped
+- [ ] **Forms checked** — confirm none exist or note if skipped
+- [ ] **Images noted** — which are placeholders vs skipped
+
+### Cross-Check Against DOM
+- [ ] **Snapshot reviewed** — does DOM match my section breakdown?
+- [ ] **Text content verified** — exact copy from browser, not memory
+- [ ] **Widget types mapped** — heading vs text-editor decisions made
+
+**If any checkbox is unchecked, STOP. Go back and measure.**
+
+---
+
+### Common Mistakes (Self-Diagnostic)
+
+| Mistake | Detection | Fix |
+|---------|-----------|-----|
+| Color on wrong element | Check which text actually has the accent color | Re-extract with precise element targeting |
+| Font weight wrong | Serif fonts often look bolder at 400 | Note visual weight vs actual weight |
+| Cards missing borders | Divs may have subtle borders not visible in overview | Inspect individual card elements |
+| Line heights blank | Rushed extraction | Re-run DevTools, force lineHeight measurement |
+| Icons missed | Only looked at text elements | Search for `svg`, `img`, `[class*="icon"]` |
+| Nav CTA missed | Focused on main content only | Always scan nav/header separately |
+
+---
+
+> **Note on Color Values:** Browser DevTools returns colors as RGB (e.g., `rgb(30, 79, 138)`). Convert to HEX for CSS:
+> ```python
+> import re
+> def rgb_to_hex(rgb_str):
+>     nums = re.findall(r'\d+', rgb_str)
+>     if len(nums) >= 3:
+>         return f"#{int(nums[0]):02x}{int(nums[1]):02x}{int(nums[2]):02x}">     return rgb_str
+> # Example: rgb(30, 79, 138) → #1e4f8a
+> ```
 
 ---
 
@@ -32,100 +348,245 @@ Format it clearly with sections matching the page layout (e.g. Hero, Features, T
 **Trigger:** User sends the URL of their pre-built Elementor page (containers and widgets already in place, no real content yet).
 
 **What to do:**
-- Access the page source or use the Elementor REST API / page meta to retrieve the full `_elementor_data` JSON blob for that page.
-- Parse the JSON and walk every node.
-- For each widget, extract and record:
-  - `id` (the Elementor widget/element ID)
-  - `elType` (widget, column, section, container)
-  - `widgetType` (heading, text-editor, button, image, etc.)
-  - Any existing text content (even placeholder text) so you can match it to the content map
-  - Its position context (what section it lives in, its order)
+
+1. **Find the page ID:**
+   ```bash
+   sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+     "cd $WORDPRESS_PATH && wp post list --post_type=page --fields=ID,post_name,post_title | grep -i $PAGE_SLUG"
+   ```
+
+2. **Extract `_elementor_data` from database:**
+   ```bash
+   sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+     "cd $WORDPRESS_PATH && wp db query \"SELECT meta_value FROM wp_postmeta WHERE post_id = $PAGE_ID AND meta_key = '_elementor_data'\" --skip-column-names" > /tmp/elementor_data.json
+   ```
+
+3. **Parse the JSON and walk every node.** For each widget, extract and record:
+   - `id` (the Elementor widget/element ID — 7-character hex like `51d6d64`)
+   - `elType` (widget, container, section)
+   - `widgetType` (heading, text-editor, button, image, etc.)
+   - Any existing text content (placeholder text) to help with mapping
+   - Parent container context
 
 **Write a file:**
 Save all extracted IDs and their mapping to: `scratch/data_ids.md`
 
-Format it as a structured list, grouped by section, like:
+Format it as a structured list, grouped by section:
 
-```
+```markdown
 ## Hero Section
 - ID: abc123 | widgetType: heading | placeholder: "Your Heading Here"
 - ID: def456 | widgetType: text-editor | placeholder: "Subheading text"
-- ID: ghi789 | widgetType: button | placeholder: "Click Me"
 
 ## Features Section
+- ID: ghi789 | widgetType: heading | placeholder: "Feature Title"
 ...
 ```
 
-Cross-reference each widget ID to the corresponding copy entry in `scratch/content_map.md` so the mapping is explicit. Do NOT work from memory — always read from the scratch files.
+**Cross-reference** each widget ID to the corresponding copy entry in `scratch/content_map.md`.
 
-**Tell the user:** Data extraction done. Moving to copy injection now.
+**Tell the user:** Data extraction done. Found [X] widgets. Moving to copy injection now.
 
 ---
 
-## STEP 3 — Push Copy via REST API
+## STEP 3 — Push Copy via SSH Database Injection
 
-**Trigger:** Both scratch files exist and are complete.
+**Trigger:** Both scratch files exist and mapping is confirmed.
 
 **What to do:**
-- Read `scratch/content_map.md` — get all the copy.
-- Read `scratch/data_ids.md` — get all the widget IDs and their section mapping.
-- Retrieve the full `_elementor_data` JSON for the page via WordPress REST API:
-  ```
-  GET /wp-json/wp/v2/pages/{page_id}
-  ```
-  (or posts endpoint if it's a post type)
-- Parse the `_elementor_data` field (it's a JSON string, decode it).
-- Walk the parsed JSON and for each widget ID found in `scratch/data_ids.md`:
-  - Replace the widget's content/text with the corresponding copy from `scratch/content_map.md`
-  - For buttons: update `button_text`
-  - For headings: update `title`
-  - For text editors: update `editor`
-  - For images: update `url` / `alt` if applicable
-- Re-encode the entire `_elementor_data` back to a JSON string.
-- Push it back via REST API:
-  ```
-  POST /wp-json/wp/v2/pages/{page_id}
-  Body: { "meta": { "_elementor_data": "<updated JSON string>" } }
-  ```
-- Use Basic Auth or Application Password for authentication.
 
-**Tell the user:** Copy has been pushed. Please review the page now and confirm everything looks correct — right copy in the right places. Once you give the green light, we move to styling.
+1. **Read `scratch/content_map.md`** — get all the copy.
+
+2. **Read `scratch/data_ids.md`** — get all the widget IDs and their section mapping.
+
+3. **Create the copy mapping dictionary:**
+   ```python
+   copy_map = {
+       # Widget ID → New content
+       '51d6d64': 'Elevate Your Digital Game',  # heading
+       '7c5da35': 'We combine strategic thinking...',  # text-editor
+       'bf95995': 'Multi-Page Website Design',  # heading
+       # ... etc
+   }
+   ```
+
+4. **Walk the Elementor JSON tree recursively:**
+   ```python
+   def update_widgets(elements):
+       for item in elements:
+           item_id = item.get('id')
+           if item_id in copy_map:
+               widget_type = item.get('widgetType', '')
+               new_text = copy_map[item_id]
+               
+               if widget_type == 'heading':
+                   item['settings']['title'] = new_text
+               elif widget_type == 'text-editor':
+                   # Convert newlines to <br> for HTML
+                   html_text = new_text.replace('\n', '<br>')
+                   item['settings']['editor'] = html_text
+               elif widget_type == 'button':
+                   item['settings']['text'] = new_text
+           
+           # Recurse into child containers
+           if 'elements' in item:
+               update_widgets(item['elements'])
+   ```
+
+5. **Re-serialize the JSON** (compact format for database):
+   ```python
+   import json
+   updated_json = json.dumps(data, separators=(',', ':'))
+   ```
+
+6. **Upload and inject into database:**
+   ```bash
+   # Upload updated JSON to server
+   cat /tmp/elementor_updated.json | sshpass -p "$SSH_PASS" ssh \
+     -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST 'cat > /tmp/elementor_update.json'
+   
+   # Update database via WP-CLI
+   sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+     "cd $WORDPRESS_PATH && wp post meta update $PAGE_ID _elementor_data --format=json < /tmp/elementor_update.json"
+   ```
+
+7. **Clear Elementor caches:**
+   ```bash
+   sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+     "cd $WORDPRESS_PATH && wp elementor flush-css && wp cache flush"
+   ```
+
+**Tell the user:** Copy has been injected. Check the page now — all placeholder text should be replaced with real copy.
 
 ---
 
 ## STEP 4 — Push CSS Styling via SSH
 
-**Trigger:** User confirms copy looks good.
+**Trigger:** User confirms copy looks good and wants styling applied.
 
 **What to do:**
-- Read `scratch/content_map.md` — pull all colors, font sizes, font families, spacing values.
-- Read `scratch/data_ids.md` — use the widget IDs to build targeted CSS selectors.
-- Elementor widget selectors follow the pattern:
-  ```css
-  .elementor-element-{id} { ... }
-  .elementor-element-{id} .elementor-widget-container { ... }
-  .elementor-element-{id} h2 { ... }
-  /* etc. */
-  ```
-- Write a complete CSS block covering:
-  - Background colors per section/container
-  - Text colors, font sizes, font weights, font families per widget
-  - Button colors, hover states, border radius, padding
-  - Section/container padding and gap values
-  - Any additional visual details from the content map
 
-- Connect via SSH to the WordPress server.
-- Inject the CSS into the theme's custom CSS file or directly into `wp-content/uploads/elementor/css/post-{page_id}.css` (Elementor's generated CSS file for the page).
-- Alternatively, append to the active theme's `style.css` or use the WordPress Customizer CSS endpoint if SSH injection is not preferred.
+1. **Read `scratch/content_map.md`** — pull all colors, font sizes, spacing values.
 
-**Tell the user:** Styling has been pushed. Refresh the page and check it out — let me know if anything needs tweaking.
+2. **Read `scratch/data_ids.md`** — use the widget/container IDs to build targeted CSS selectors.
+
+3. **Build CSS with data-id targeting:**
+   ```css
+   /* Widget-specific styling */
+   .elementor-element-{WIDGET_ID} {
+       /* widget styles */
+   }
+   .elementor-element-{WIDGET_ID} .elementor-widget-container {
+       /* container styles */
+   }
+   
+   /* Container-specific styling (for backgrounds, gaps, etc.) */
+   .elementor-element-{CONTAINER_ID} {
+       background-color: #0a0a0a;
+       gap: 32px;
+   }
+   ```
+
+4. **Inject CSS via SSH:**
+   ```bash
+   # Option A: Append to theme functions.php
+   sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST \
+     "cd $WORDPRESS_PATH && wp eval 'file_put_contents(\"$functions_path\", $css_block, FILE_APPEND);'"
+   
+   # Option B: Add to Elementor custom CSS (if available)
+   ```
+
+**Tell the user:** Styling pushed. Refresh the page and verify.
 
 ---
 
-## Notes
+### CSS Best Practices
 
-- Always read from scratch files. Never rely on memory between steps.
-- Scratch files live at: `scratch/content_map.md` and `scratch/data_ids.md`
-- The `_elementor_data` field is a serialized JSON string — always decode before editing, always re-encode before saving back.
-- If the REST API returns a 401, check that Application Passwords are enabled and the auth header is correct.
-- If CSS doesn't apply, check selector specificity — Elementor inline styles may need `!important` overrides.
+**Do NOT use `!important`:**
+- Using `!important` overrides Elementor's visual controls
+- Users won't be able to edit font sizes, colors, or backgrounds via the UI
+- Build CSS without `!important` so Elementor controls work normally
+
+**Example (correct):**
+```css
+.elementor-element-aeb44c8 {
+    background-color: #1E4F8A;
+    min-height: 100vh;
+}
+.elementor-element-94c078c .elementor-heading-title {
+    font-size: 48px;
+    font-weight: 700;
+    color: #FFFFFF;
+}
+```
+
+**If you need stronger specificity:**
+- Use more specific selectors (`.elementor-element-{ID} .elementor-widget-container h2`)
+- Target the specific Elementor classes instead of adding `!important`
+
+---
+
+## Critical Notes
+
+### Widget Type Field Mapping
+
+| Widget Type | Field Name | Example |
+|-------------|------------|---------|
+| heading | `title` | `item['settings']['title'] = 'Headline'` |
+| text-editor | `editor` | `item['settings']['editor'] = '<p>Body text</p>'` |
+| button | `text` | `item['settings']['text'] = 'Click Me'` |
+| image | `url`, `alt` | `item['settings']['url'] = 'image.jpg'` |
+
+### SSH Commands Reference
+
+```bash
+# SSH with password (non-interactive)
+sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no user@host "command"
+
+# WP-CLI database query
+wp db query "SELECT meta_value FROM wp_postmeta WHERE post_id = 606 AND meta_key = '_elementor_data'"
+
+# WP-CLI update post meta
+wp post meta update 606 _elementor_data --format=json < /tmp/data.json
+
+# Clear Elementor cache
+wp elementor flush-css
+wp cache flush
+```
+
+### Common Issues
+
+**Permission denied on SSH:**
+- Install `sshpass` if not available: `apt-get install sshpass`
+- Verify credentials in MEMORY.md
+- Check if SSH key auth is required instead
+
+**Changes not showing on frontend:**
+- Clear Elementor CSS cache: `wp elementor flush-css`
+- Clear WordPress cache: `wp cache flush`
+- Clear browser cache (add `?nocache=1` to URL)
+
+**Widget content not updating:**
+- Verify widget ID matches exactly (case-sensitive)
+- Check widget type and use correct field name
+- Ensure JSON is valid before pushing
+
+---
+
+## File Locations
+
+- Content map: `workspace/scratch/content_map.md`
+- Data IDs: `workspace/scratch/data_ids.md`
+- Working files: `/tmp/elementor_data.json`, `/tmp/elementor_updated.json`
+
+---
+
+## Version History
+
+- v2.5 (March 28, 2026): **Step 1 Verification Protocol** — Added mandatory extraction sequence, verification checklist, and common mistakes table after content map errors (gold accent on wrong element, missing card borders, blank line heights, missed nav CTA/icons)
+- v2.4 (March 27, 2026): **Content Map Structure** — Replaced rigid template with universal structure (tokens + sections + skips), removed all example values
+- v2.3 (March 27, 2026): **CSS Best Practices** — Added rule to NOT use `!important` in CSS, preserving Elementor editability
+- v2.2 (March 27, 2026): **Added Critical Build Rules** — Hero always 100vh, section height measurements, NO animations/forms/images/icons, SKIP transitions/waves, unicode symbols only
+- v2.1 (March 27, 2026): **DevTools precision extraction** — Added Step 1 Method A for using Chrome DevTools to extract exact design tokens (colors, typography, spacing) from live URLs
+- v2.0 (March 27, 2026): **SSH injection proven working** — Updated to reflect actual working method using SSH + WP-CLI for database updates
+- v1.0 (March 27, 2026): Initial REST API approach (theoretical, not tested)
