@@ -1,0 +1,131 @@
+# WordPress Elementor Transfer Pipeline
+## Execution Guide — Single File
+
+---
+
+## STEP 1 — Build Content Map
+
+**Trigger:** User sends a reference (screenshot or live URL of the design to replicate).
+
+**What to do:**
+- Analyze the reference thoroughly — every section, every element.
+- Document ALL of the following:
+  - All copy (headings, subheadings, body text, button labels, nav items, footers, disclaimers — everything)
+  - All colors (backgrounds, text colors, button colors, borders — use hex codes)
+  - All font sizes (in px or rem as seen)
+  - All font families / font weights
+  - Spacing clues (padding, gaps, margin estimates from visual inspection)
+  - Layout notes (number of columns per row, flex direction, alignment)
+  - Any icons, image placeholders, or media noted
+
+**Write a file:**
+Save all notes to: `scratch/content_map.md`
+
+Format it clearly with sections matching the page layout (e.g. Hero, Features, Testimonials, CTA, Footer). Be exhaustive — this file is your source of truth for all copy and styling. You will refer to it in every subsequent step. Do NOT work from memory.
+
+**Tell the user:** Content map is done, saved to scratch. Share the URL or screenshot of the Elementor layout page you built.
+
+---
+
+## STEP 2 — Extract Data IDs from Layout Page
+
+**Trigger:** User sends the URL of their pre-built Elementor page (containers and widgets already in place, no real content yet).
+
+**What to do:**
+- Access the page source or use the Elementor REST API / page meta to retrieve the full `_elementor_data` JSON blob for that page.
+- Parse the JSON and walk every node.
+- For each widget, extract and record:
+  - `id` (the Elementor widget/element ID)
+  - `elType` (widget, column, section, container)
+  - `widgetType` (heading, text-editor, button, image, etc.)
+  - Any existing text content (even placeholder text) so you can match it to the content map
+  - Its position context (what section it lives in, its order)
+
+**Write a file:**
+Save all extracted IDs and their mapping to: `scratch/data_ids.md`
+
+Format it as a structured list, grouped by section, like:
+
+```
+## Hero Section
+- ID: abc123 | widgetType: heading | placeholder: "Your Heading Here"
+- ID: def456 | widgetType: text-editor | placeholder: "Subheading text"
+- ID: ghi789 | widgetType: button | placeholder: "Click Me"
+
+## Features Section
+...
+```
+
+Cross-reference each widget ID to the corresponding copy entry in `scratch/content_map.md` so the mapping is explicit. Do NOT work from memory — always read from the scratch files.
+
+**Tell the user:** Data extraction done. Moving to copy injection now.
+
+---
+
+## STEP 3 — Push Copy via REST API
+
+**Trigger:** Both scratch files exist and are complete.
+
+**What to do:**
+- Read `scratch/content_map.md` — get all the copy.
+- Read `scratch/data_ids.md` — get all the widget IDs and their section mapping.
+- Retrieve the full `_elementor_data` JSON for the page via WordPress REST API:
+  ```
+  GET /wp-json/wp/v2/pages/{page_id}
+  ```
+  (or posts endpoint if it's a post type)
+- Parse the `_elementor_data` field (it's a JSON string, decode it).
+- Walk the parsed JSON and for each widget ID found in `scratch/data_ids.md`:
+  - Replace the widget's content/text with the corresponding copy from `scratch/content_map.md`
+  - For buttons: update `button_text`
+  - For headings: update `title`
+  - For text editors: update `editor`
+  - For images: update `url` / `alt` if applicable
+- Re-encode the entire `_elementor_data` back to a JSON string.
+- Push it back via REST API:
+  ```
+  POST /wp-json/wp/v2/pages/{page_id}
+  Body: { "meta": { "_elementor_data": "<updated JSON string>" } }
+  ```
+- Use Basic Auth or Application Password for authentication.
+
+**Tell the user:** Copy has been pushed. Please review the page now and confirm everything looks correct — right copy in the right places. Once you give the green light, we move to styling.
+
+---
+
+## STEP 4 — Push CSS Styling via SSH
+
+**Trigger:** User confirms copy looks good.
+
+**What to do:**
+- Read `scratch/content_map.md` — pull all colors, font sizes, font families, spacing values.
+- Read `scratch/data_ids.md` — use the widget IDs to build targeted CSS selectors.
+- Elementor widget selectors follow the pattern:
+  ```css
+  .elementor-element-{id} { ... }
+  .elementor-element-{id} .elementor-widget-container { ... }
+  .elementor-element-{id} h2 { ... }
+  /* etc. */
+  ```
+- Write a complete CSS block covering:
+  - Background colors per section/container
+  - Text colors, font sizes, font weights, font families per widget
+  - Button colors, hover states, border radius, padding
+  - Section/container padding and gap values
+  - Any additional visual details from the content map
+
+- Connect via SSH to the WordPress server.
+- Inject the CSS into the theme's custom CSS file or directly into `wp-content/uploads/elementor/css/post-{page_id}.css` (Elementor's generated CSS file for the page).
+- Alternatively, append to the active theme's `style.css` or use the WordPress Customizer CSS endpoint if SSH injection is not preferred.
+
+**Tell the user:** Styling has been pushed. Refresh the page and check it out — let me know if anything needs tweaking.
+
+---
+
+## Notes
+
+- Always read from scratch files. Never rely on memory between steps.
+- Scratch files live at: `scratch/content_map.md` and `scratch/data_ids.md`
+- The `_elementor_data` field is a serialized JSON string — always decode before editing, always re-encode before saving back.
+- If the REST API returns a 401, check that Application Passwords are enabled and the auth header is correct.
+- If CSS doesn't apply, check selector specificity — Elementor inline styles may need `!important` overrides.
